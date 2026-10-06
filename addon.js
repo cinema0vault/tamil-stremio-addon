@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const { addonBuilder, serveHTTP } = require("stremio-addon-sdk");
 
 const manifest = {
@@ -35,50 +37,57 @@ const manifest = {
 const builder = new addonBuilder(manifest);
 
 
-// TEST MOVIES
+// =====================================================
+// LOAD ALL JSON FILES FROM THE MOVIES FOLDER
+// =====================================================
 
-const movies = [
-    {
-        id: "tamil-test-001",
-        name: "Tamil Test Movie",
-        year: 2026,
+function loadMovies() {
 
-        poster: "https://placehold.co/600x900",
+    const moviesFolder = path.join(__dirname, "movies");
 
-        description:
-            "Test Tamil movie for our Stremio addon.",
-
-        genre: [
-            "Tamil",
-            "Drama"
-        ],
-
-        stream: null
-    },
-
-    {
-        id: "tamil-test-002",
-        name: "Tamil Action Test",
-        year: 2026,
-
-        poster: "https://placehold.co/600x900",
-
-        description:
-            "Test Tamil action movie.",
-
-        genre: [
-            "Tamil",
-            "Action"
-        ],
-
-        stream: null
+    if (!fs.existsSync(moviesFolder)) {
+        return [];
     }
-];
+
+    const files = fs.readdirSync(moviesFolder)
+        .filter(file => file.toLowerCase().endsWith(".json"));
+
+    let allMovies = [];
+
+    for (const file of files) {
+
+        try {
+
+            const filePath = path.join(moviesFolder, file);
+
+            const data = JSON.parse(
+                fs.readFileSync(filePath, "utf8")
+            );
+
+            if (Array.isArray(data)) {
+                allMovies = allMovies.concat(data);
+            }
+
+        } catch (error) {
+
+            console.error(
+                "Error loading " + file + ":",
+                error.message
+            );
+        }
+    }
+
+    return allMovies;
+}
 
 
+// =====================================================
 // CATALOG
+// =====================================================
 
 builder.defineCatalogHandler(async (args) => {
+
+    const movies = loadMovies();
 
     let results = movies;
 
@@ -89,9 +98,8 @@ builder.defineCatalogHandler(async (args) => {
             .trim();
 
         results = movies.filter(movie =>
-            movie.name
-                .toLowerCase()
-                .includes(search)
+            movie.name &&
+            movie.name.toLowerCase().includes(search)
         );
     }
 
@@ -102,19 +110,23 @@ builder.defineCatalogHandler(async (args) => {
             name: movie.name,
             poster: movie.poster,
             releaseInfo: String(movie.year),
-            description: movie.description,
-            genres: movie.genre
+            description: movie.name + " (" + movie.year + ")",
+            genres: ["Tamil"]
         }))
     };
 });
 
 
+// =====================================================
 // MOVIE DETAILS
+// =====================================================
 
 builder.defineMetaHandler(async (args) => {
 
-    const movie = movies.find(
-        movie => movie.id === args.id
+    const movies = loadMovies();
+
+    const movie = movies.find(movie =>
+        movie.id === args.id
     );
 
     if (!movie) {
@@ -129,20 +141,24 @@ builder.defineMetaHandler(async (args) => {
             type: "movie",
             name: movie.name,
             poster: movie.poster,
-            description: movie.description,
+            description: movie.name + " (" + movie.year + ")",
             releaseInfo: String(movie.year),
-            genres: movie.genre
+            genres: ["Tamil"]
         }
     };
 });
 
 
+// =====================================================
 // STREAM
+// =====================================================
 
 builder.defineStreamHandler(async (args) => {
 
-    const movie = movies.find(
-        movie => movie.id === args.id
+    const movies = loadMovies();
+
+    const movie = movies.find(movie =>
+        movie.id === args.id
     );
 
     if (!movie || !movie.stream) {
@@ -163,7 +179,9 @@ builder.defineStreamHandler(async (args) => {
 });
 
 
+// =====================================================
 // START SERVER
+// =====================================================
 
 const PORT = process.env.PORT || 7000;
 
@@ -179,5 +197,6 @@ console.log("==============================");
 console.log("      TAMIL VAULT ADDON");
 console.log("==============================");
 console.log("");
-console.log(`Server running on port ${PORT}`);
+console.log("Server running on port " + PORT);
+console.log("Movies loaded: " + loadMovies().length);
 console.log("");
